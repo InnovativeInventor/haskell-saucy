@@ -362,22 +362,22 @@ fMPC_ hasMPC hasMult (p2f, f2p) (_,_) (_,_) = do
      if hasMPC then do
        -- In the MPC mode, let the program read/storeFresh the
        -- table of polynomial secret sharings
-       let storeFresh phi = do
+       let storeFresh phi = do {
            sh <- fresh
            modifyIORef shareTbl $ Map.insert sh phi
-           return sh
+           return sh }
        let readSharing sh = readIORef shareTbl >>= return . (! sh)
        res <- doMpcOp hasMult readSharing storeFresh inputs op
        commit op res
      else do
        -- In the ABB mode, we'll only store constant polynomials.
-       let storeFresh x = do
+       let storeFresh x = do {
            sh <- fresh
            modifyIORef shareTbl $ Map.insert sh (polyFromCoeffs [x])
-           return sh
-       let readSecret sh = do
+           return sh }
+       let readSecret sh = do {
            phi <- readIORef shareTbl >>= return . (! sh)
-           return (eval phi 0)
+           return (eval phi 0) }
        res <- doAbbOp readSecret storeFresh inputs op
 
        commit op res
@@ -562,7 +562,7 @@ runMPCnewmul mulProg (z2p,p2z) (f2p,p2f) = do
          return r
 
    log <- newIORef []
-   let commit opcode res = do
+   let commit opcode res = do {
        modifyIORef log $ (++ [(opcode,res)])
        writeChan p2z $ FmpcF2P_Op opcode res
 
@@ -802,8 +802,8 @@ simBeaver (z2a, a2z) (p2a, a2p) (_, _) = do
   -- The interesting case is when MULT shows up in the log, since we need to
   -- substitute BeaverMul operations for it.
   
-  let commit opres = do
-      let (op, res) = opres
+  let commit opres = do{
+      let (op, res) = opres 
       -- liftIO $ putStrLn $ "Commit" ++ show (fmap (const ()) op, fmap (const ()) res)
       case opres of
         (MULT x y, FmpcRes_Sh xy) -> do
