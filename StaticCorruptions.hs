@@ -300,6 +300,7 @@ testEnv z2exec (p2z, z2p) (a2z, z2a) (f2z, z2f) pump outp = do
   () <- readChan pump
   writeChan z2a $ SttCruptZ2A_A2F "ok"
 
+testParam n = runITMinIO n $ execUC testEnv idealProtocol dummyFunctionality dummyAdversary
 testExec = runITMinIO 120 $ execUC testEnv idealProtocol dummyFunctionality dummyAdversary
 
 
