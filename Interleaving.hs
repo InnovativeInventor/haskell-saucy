@@ -8,7 +8,7 @@ import ProcessIO
 import Data.List
 import System.IO.Unsafe ( unsafePerformIO )
 import Control.Concurrent.MonadIO
-import Control.Monad (forever, forM_, replicateM_, replicateM)
+import Control.Monad (forever, forM_, replicateM_, replicateM, foldM)
 import Test.QuickCheck.Monadic
 import System.Random -- TODO: replace with QuickCheck
 
@@ -18,6 +18,13 @@ data SignalChan = SignalChan {
     to :: Chan Signal, -- controller to process
     from :: Chan Signal -- process to controller
     }
+
+mkSignalChan :: IO _
+mkSignalChan = do
+    c2p <- newChan
+    p2c <- newChan
+    let sig = SignalChan {to=c2p, from=p2c}
+    return sig
 
 -- the control sends the go to the process
 go sig = do
@@ -32,34 +39,76 @@ block sig = do
 done sig = do
     writeChan (from sig) Done
 
+-- blockReady will nicely put the message back after reading
+-- if it's not right
+-- isReady will return True if Done or Blocking
+blockReady sig = do
+    signal <- readChan (from sig)
+    writeChan (from sig) signal -- write back
+    case signal of
+        Blocking -> return True
+        Done -> return True
+        _ -> undefined
+        -- _ -> blockReady sig -- this doesn't actually happen, but if it does we should not write back in this case
+
+isDone sig = do
+    signal <- readChan (from sig)
+    writeChan (from sig) signal -- write back
+    case signal of
+        Done -> return True
+        _ -> return False
+
+foldAnd x y = do
+   a <- y
+   return (x && a)
+
+blockUntilReady sigs = do
+    mapM blockReady sigs
+
+hackyPick :: [a] -> IO a
+hackyPick xs = fmap (xs !!) $ randomRIO (0, length xs - 1)
+
+choiceRun sigs = do
+   blockUntilReady sigs
+   sig <- hackyPick sigs -- chan <- pick chans -- QuickCheck?
+   go sig
+
 -- some dummy example processes, to demo interleaving
 processP sig = do
     block sig
-    liftIO $ putStrLn "seen from P"
+    liftIO $ putStrLn "seen from P at point 1"
     block sig
-    liftIO $ putStrLn "seen from P 2"
+    liftIO $ putStrLn "seen from P at point 2"
     done sig
 
 processQ sig = do
     block sig
-    liftIO $ putStrLn "seen from Q"
+    liftIO $ putStrLn "seen from Q at point 3"
     block sig
-    liftIO $ putStrLn "seen from Q 2"
+    liftIO $ putStrLn "seen from Q  at point 4"
     done sig
     
 deadlockEx :: IO ()
 deadlockEx = do
-  d <- newChan
-  c <- newChan
-
-  c2p <- newChan
-  p2c <- newChan
-  q2c <- newChan
-  c2q <- newChan
-
-  let sigQ = SignalChan {to=c2q, from=q2c}
-  let sigP = SignalChan {to=c2p, from=p2c}
+  sigQ <- mkSignalChan
+  sigP <- mkSignalChan
 
   fork $ processP sigP
   fork $ processQ sigQ
+
+  return ()
+
+randEx :: IO ()
+randEx = do
+  sigQ <- mkSignalChan
+  sigP <- mkSignalChan
+
+  fork $ processP sigP
+  fork $ processQ sigQ
+
+  choiceRun [sigQ, sigP]
+  choiceRun [sigQ, sigP]
+  choiceRun [sigQ, sigP]
+  choiceRun [sigQ, sigP]
+
   return ()
