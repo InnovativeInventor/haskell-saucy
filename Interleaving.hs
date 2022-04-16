@@ -80,10 +80,17 @@ choiceRun sigs = do
 -- undefined behavior for dur <= 0
 fuzz dur sigs = do
    choiceRun sigs
-   filterM (notM . isDone) sigs
+   sigs <- filterM (notM . isDone) sigs
    case dur of
        1 -> return Done
        _ -> fuzz (dur - 1) sigs
+
+fuzzTilDone sigs = do
+   choiceRun sigs
+   sigs <- filterM (notM . isDone) sigs
+   case sigs of
+       [] -> return Done
+       _ -> fuzzTilDone sigs
 
 -- some dummy example processes, to demo interleaving
 processP sig = do
@@ -118,6 +125,7 @@ randEx = do
   fork $ processP sigP
   fork $ processQ sigQ
 
-  fuzz 4 [sigQ, sigP] -- duration, signal chans
+  fuzzTilDone [sigQ, sigP]
+  -- fuzz 4 [sigQ, sigP] -- duration, signal chans
 
   return ()
