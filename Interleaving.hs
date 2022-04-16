@@ -60,10 +60,7 @@ isDone sig = do
 
 notM boolM = do
    bool <- boolM
-   case bool of
-        True -> return False
-	False -> return True
-    
+   return (not bool)
 
 foldAnd x y = do
    a <- y
