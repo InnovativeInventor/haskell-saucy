@@ -8,7 +8,7 @@ import ProcessIO
 import Data.List
 import System.IO.Unsafe ( unsafePerformIO )
 import Control.Concurrent.MonadIO
-import Control.Monad (forever, forM_, replicateM_, replicateM, foldM)
+import Control.Monad (forever, forM_, replicateM_, replicateM, foldM, filterM)
 import Test.QuickCheck.Monadic
 import System.Random -- TODO: replace with QuickCheck
 
@@ -58,6 +58,13 @@ isDone sig = do
         Done -> return True
         _ -> return False
 
+notM boolM = do
+   bool <- boolM
+   case bool of
+        True -> return False
+	False -> return True
+    
+
 foldAnd x y = do
    a <- y
    return (x && a)
@@ -72,6 +79,14 @@ choiceRun sigs = do
    blockUntilReady sigs
    sig <- hackyPick sigs -- chan <- pick chans -- QuickCheck?
    go sig
+
+-- undefined behavior for dur <= 0
+fuzz dur sigs = do
+   choiceRun sigs
+   filterM (notM . isDone) sigs
+   case dur of
+       1 -> return Done
+       _ -> fuzz (dur - 1) sigs
 
 -- some dummy example processes, to demo interleaving
 processP sig = do
@@ -106,9 +121,6 @@ randEx = do
   fork $ processP sigP
   fork $ processQ sigQ
 
-  choiceRun [sigQ, sigP]
-  choiceRun [sigQ, sigP]
-  choiceRun [sigQ, sigP]
-  choiceRun [sigQ, sigP]
+  fuzz 4 [sigQ, sigP] -- duration, signal chans
 
   return ()
